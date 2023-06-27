@@ -1,0 +1,61 @@
+<div class="row">
+    <div class="col-xs-12 col-lg-8 col-lg-offset-2">
+        <form action="/dashboard/system/seo/sitemap_xml" method="get">
+            <div class="form-group">
+                <div class="input-group">
+                    {% if search %}
+                    <span class="input-group-btn">
+                            <a href="/dashboard/system/seo/sitemap_xml" class="btn btn-danger"><i class="fa fa-times"></i></a>
+                        </span>
+                    {% endif %}
+                    <input type="search" name="search" value="{{ search }}" class="form-control" />
+
+                    <span class="input-group-btn">
+                        <button class="btn btn-info"><i class="fa fa-search"></i></button>
+                    </span>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="row">
+    <div class="col-xs-12">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Root page</th>
+                    <th>File name</th>
+                    <th><span class="pull-right">Actions</span></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for sitemap in sitemaps %}
+                <tr>
+                    <td>{{sitemap.title}}</td>
+                    <td>{{sitemap.getPagePath()}}</td>
+                    <td>{{sitemap.fileName}}</td>
+                    <td><a href="/dashboard/system/seo/sitemap_xml/manage/{{ sitemap.id }}" class="btn btn-sm btn-primary pull-right"><i class="fa fa-edit"></i></a></td>
+                </tr>
+
+                {% else %}
+                <tr>
+                    <td colspan="4" class="no-data">
+                        No sitemap found
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {{pagerfanta(pagination)}}
+    </div>
+</div>
+<div class="ccm-dashboard-form-actions-wrapper">
+    <div class="ccm-dashboard-form-actions">
+        <div class="pull-right">
+            <a class="btn btn-info" href="/dashboard/system/seo/sitemap_xml/manage">Create</a>
+        </div>
+    </div>
+</div>

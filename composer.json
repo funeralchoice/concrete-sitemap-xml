@@ -1,0 +1,23 @@
+{
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/rawnet/concrete-sitemap-xml"
+    }
+  ],
+  "name": "rawnet/concrete-sitemap-xml",
+  "type": "concrete5-package",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Rawnet Development",
+      "email": "development@rawnet.com"
+    }
+  ],
+  "extra": {
+    "installer-name": "sitemap_xml"
+  },
+  "require": {
+    "rawnet/concrete-symfony-bridge": "^1.0.2"
+  }
+}
