@@ -53,7 +53,7 @@ class PageListGenerator
         $pageList = new PageList();
         $pageList->ignorePermissions();
         if ($page->getCollectionID()) {
-            $pageList->filterByParentID($page->getCollectionID());
+            $pageList->filterByPath($page->getCollectionPath());
         }
         /**
          * @var Page[] $pages
