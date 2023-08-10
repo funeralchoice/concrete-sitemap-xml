@@ -190,11 +190,13 @@ class SitemapWriter
      */
     private function getLink(array $params = []): string
     {
-        /**
-         * @var UrlImmutable $url
-         */
-        $url = $this->urlResolver->resolve($params);
-        return $url->__toString();
+        /** @var UrlImmutable $resolved */
+        $resolved = $this->urlResolver->resolve($params);
+        $url = (string)$resolved;
+        if (preg_match('/\.[a-z0-9]{2,4}\/$/i', $url) === 1) {
+            $url = trim($url, '/');
+        }
+        return $url;
     }
 
     public function getSitemapUrl(): string
