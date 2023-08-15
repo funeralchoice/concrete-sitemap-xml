@@ -21,7 +21,7 @@ class Controller extends Package
     protected string $pkgHandle = 'sitemap_xml';
     /** @var string */
     protected $appVersionRequired = '8.0.0';
-    protected string $pkgVersion = '1.0.0';
+    protected string $pkgVersion = '1.0.3';
     /** @var string[] */
     protected $pkgAutoloaderRegistries = ['src/' => '\Concrete\Package\SitemapXml'];
     protected PackageEntity $pkg;

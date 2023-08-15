@@ -3,6 +3,9 @@
 namespace Concrete\Package\SitemapXml\Form;
 
 use Application\Bridge\Form\Type\PageSelectorType;
+use Application\Helpers\ServiceHelper;
+use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Multilingual\Page\Section\Section as MultilingualSection;
 use Concrete\Package\SitemapXml\Entity\SitemapXml;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
@@ -24,7 +27,22 @@ class SitemapXmlType extends AbstractType
          * @var SitemapXml|null $data
          */
         $data = $builder->getData();
+        $list = [];
+        /**
+         * @phpstan-ignore-next-line
+         */
+        $site = ServiceHelper::app()->make('site')->getDefault();
+        /**
+         * @var Section $section
+         */
+        foreach (MultilingualSection::getList($site) as $section) {
+            $lang = "{$section->getCollectionName()} ({$section->getLocaleObject()->getLocale()})";
+            $list[$lang] = $section->getCollectionID();
+        }
         $builder
+            ->add('site', ChoiceType::class, [
+                'choices' => $list
+            ])
             ->add('pageId', PageSelectorType::class, [
                 'label' => 'Page',
                 'required' => true,

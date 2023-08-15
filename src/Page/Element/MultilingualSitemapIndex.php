@@ -5,7 +5,7 @@ namespace Concrete\Package\SitemapXml\Page\Element;
 use Illuminate\Support\Collection;
 use Symfony\Component\Serializer\Annotation\Ignore;
 
-class Sitemap
+class MultilingualSitemapIndex
 {
     private string $loc;
     private string $lastmod;
@@ -16,14 +16,14 @@ class Sitemap
     private string $fileName;
 
     /**
-     * @var Collection<SitemapPage> $pages
-     * @Ignore
+     * @var Collection<Sitemap> $sitemap
+     * @Ignore()
      */
-    private Collection $pages;
+    private Collection $sitemap;
 
     public function __construct()
     {
-        $this->pages = new Collection();
+        $this->sitemap = new Collection();
     }
 
     /**
@@ -36,9 +36,9 @@ class Sitemap
 
     /**
      * @param string $loc
-     * @return Sitemap
+     * @return $this
      */
-    public function setLoc(string $loc): Sitemap
+    public function setLoc(string $loc): self
     {
         $this->loc = $loc;
         return $this;
@@ -54,35 +54,28 @@ class Sitemap
 
     /**
      * @param string $lastmod
-     * @return Sitemap
+     * @return $this
      */
-    public function setLastmod(string $lastmod): Sitemap
+    public function setLastmod(string $lastmod): self
     {
         $this->lastmod = $lastmod;
         return $this;
     }
 
-    /**
-     * @return Collection<SitemapPage>
-     */
-    public function getPages(): Collection
+    public function getSitemap(): Collection
     {
-        return $this->pages;
+        return $this->sitemap;
     }
 
-    /**
-     * @param SitemapPage[] $pages
-     * @return Sitemap
-     */
-    public function setPages(array $pages): Sitemap
+    public function setSitemap(Collection $sitemap): self
     {
-        $this->pages = new Collection($pages);
+        $this->sitemap = $sitemap;
         return $this;
     }
 
-    public function addPage(SitemapPage $page): Sitemap
+    public function addSitemap(Sitemap $sitemap): self
     {
-        $this->pages->add($page);
+        $this->sitemap->add($sitemap);
         return $this;
     }
 
@@ -96,9 +89,9 @@ class Sitemap
 
     /**
      * @param string $fileName
-     * @return Sitemap
+     * @return $this
      */
-    public function setFileName(string $fileName): Sitemap
+    public function setFileName(string $fileName): self
     {
         $this->fileName = $fileName;
         return $this;
