@@ -50,6 +50,12 @@ class SitemapXml
     protected ?string $handler = null;
 
     /**
+     * @ORM\Column(type="integer", nullable=false, options={"default"=1})
+     * @Assert\GreaterThanOrEqual(value = 1, message = "You need to select a site.")
+     */
+    protected int $site;
+
+    /**
      * @return int|null
      */
     public function getId(): ?int
@@ -144,6 +150,9 @@ class SitemapXml
      */
     public function getHandler(): ?string
     {
+        /**
+         * @phpstan-ignore-next-line
+         */
         return $this->handler;
     }
 
@@ -157,7 +166,18 @@ class SitemapXml
         return $this;
     }
 
-    public function getPagePath():string
+    public function getSite(): int
+    {
+        return $this->site;
+    }
+
+    public function setSite(int $site): self
+    {
+        $this->site = $site;
+        return $this;
+    }
+
+    public function getPagePath(): string
     {
         return Page::getByID($this->pageId)->getCollectionPath();
     }

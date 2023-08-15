@@ -2,12 +2,20 @@
 
 namespace Concrete\Package\SitemapXml\Page\Element;
 
+use Symfony\Component\Serializer\Annotation\Ignore;
+use Symfony\Component\Serializer\Annotation\SerializedName;
+
 class SitemapPage
 {
     private string $loc;
     private string $lastmod;
     private string $changefreq;
     private string $priority;
+    /**
+     * @var array<SitemapPageLink>
+     * @SerializedName("xhtml:link")
+     */
+    private array $links;
 
     /**
      * @return string
@@ -78,6 +86,30 @@ class SitemapPage
     public function setPriority(string $priority): SitemapPage
     {
         $this->priority = $priority;
+        return $this;
+    }
+
+    /**
+     * @return SitemapPageLink[]
+     */
+    public function getLinks(): array
+    {
+        return $this->links;
+    }
+
+    /**
+     * @param array<SitemapPageLink> $links
+     * @return $this
+     */
+    public function setLinks(array $links): self
+    {
+        $this->links = $links;
+        return $this;
+    }
+
+    public function addLink(SitemapPageLink $link): self
+    {
+        $this->links[] = $link;
         return $this;
     }
 }

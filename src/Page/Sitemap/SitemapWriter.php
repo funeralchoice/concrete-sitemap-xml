@@ -7,15 +7,18 @@ use Concrete\Core\Config\Repository\Repository;
 use Concrete\Core\Error\UserMessageException;
 use Concrete\Core\Logging\Channels;
 use Concrete\Core\Logging\LoggerFactory;
+use Concrete\Core\Multilingual\Page\Section\Section;
 use Concrete\Core\Url\Resolver\Manager\ResolverManager;
 use Concrete\Core\Url\UrlImmutable;
 use Concrete\Package\SitemapXml\Entity\SitemapXml;
+use Concrete\Package\SitemapXml\Page\Element\MultilingualSitemapIndex;
+use Concrete\Package\SitemapXml\Page\Element\MultilingualSitemapIndexes;
 use Doctrine\ORM\EntityManager;
 use Illuminate\Filesystem\Filesystem;
 use DateTime;
 use Illuminate\Support\Collection;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Serializer\Serializer;
 use Concrete\Package\SitemapXml\Page\Element\Sitemap;
 use Concrete\Package\SitemapXml\Page\Element\SitemapIndex;
 
@@ -24,12 +27,12 @@ class SitemapWriter
     protected Filesystem $filesystem;
     private SitemapGenerator $sitemapGenerator;
     private EntityManager $entityManager;
-    private SerializerInterface $serializer;
+    private Serializer $serializer;
     private ResolverManager $urlResolver;
     private Repository $config;
     private LoggerInterface $log;
 
-    public function __construct(Filesystem $filesystem, SitemapGenerator $sitemapGenerator, EntityManager $entityManager, SerializerInterface $serializer, ResolverManager $urlResolver, Repository $config, LoggerFactory $log)
+    public function __construct(Filesystem $filesystem, SitemapGenerator $sitemapGenerator, EntityManager $entityManager, Serializer $serializer, ResolverManager $urlResolver, Repository $config, LoggerFactory $log)
     {
         $this->filesystem = $filesystem;
         $this->sitemapGenerator = $sitemapGenerator;
@@ -49,38 +52,51 @@ class SitemapWriter
         try {
             $this->checkOutputFileName();
             Cache::disableAll();
+            /**
+             * @var SitemapXml[] $indexes
+             */
             $indexes = $this->entityManager->getRepository(SitemapXml::class)->findAll();
             $now = (new DateTime())->format(DateTime::W3C);
             $sitemapIndex = new SitemapIndex();
 
+
+            $sitemaps = [];
+            $siteSitemaps = [];
             foreach ($indexes as $index) {
-                $sitemap = new Sitemap();
-                $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), $index->getFileName()]));
-                $sitemap->setLastmod($now);
-                $sitemap->setFileName($index->getFileName());
-                $pages = $this->sitemapGenerator->generatePages($index, $pulse);
-                $sitemap->setPages($pages);
-                if ($sitemap->getPages()->count() > $index->getLimitPerFile()) {
-                    // if it is more than the amount spilt into smaller sitemap indexes
-                    $this->spiltSitemaps($sitemapIndex, $sitemap, $index->getLimitPerFile(), $index->getFilename(), $now);
-                } else {
-                    $sitemapIndex->addSitemap($sitemap);
+                $sitemaps[$index->getSite()] = $index;
+                $siteSitemaps[$index->getSite()][] = $index;
+            }
+            if (count($sitemaps) > 1) {
+                $this->sitemapGenerator->setIsMultilingual(true);
+
+                $multiLingualSitemapIndexes = new MultilingualSitemapIndexes();
+                foreach ($sitemaps as $siteId => $sitemap) {
+                    /**
+                     * @var Section $section
+                     */
+                    $section = Section::getByID($siteId);
+                    $multiLingualSitemapIndex = new MultilingualSitemapIndex();
+
+                    $filename = "sitemap-{$section->getCollectionHandle()}.xml";
+                    $multiLingualSitemapIndex->setLoc($this->getLink([$this->getSitemapBasePath(), $filename]))
+                        ->setLastmod($now)
+                        ->setFileName($filename);
+                    $generatePages = $siteSitemaps[$siteId];
+
+                    foreach ($generatePages as $index) {
+                        $this->generateSitemap($multiLingualSitemapIndex, $index, $now, $pulse);
+                    }
+                    $this->generateGeneralSitemap($multiLingualSitemapIndex, $section, $now, $pulse);
+                    $multiLingualSitemapIndexes->addSitemap($multiLingualSitemapIndex);
                 }
-            }
 
-            $sitemap = new Sitemap();
-            $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), 'general.xml']));
-            $sitemap->setLastmod($now);
-            $sitemap->setFileName('general.xml');
-            $pages = $this->sitemapGenerator->getGeneralPages($pulse);
-            $sitemap->setPages($pages);
-            if ($sitemap->getPages()->count() > 50000) {
-                $this->spiltSitemaps($sitemapIndex, $sitemap, 50000, 'general.xml', $now);
+                $this->writeMultiLingualSitemaps($multiLingualSitemapIndexes);
             } else {
-                $sitemapIndex->addSitemap($sitemap);
+                $this->generateFromIndexes($sitemapIndex, $indexes, $now, $pulse);
+                $section = Section::getDefaultSection();
+                $this->generateGeneralSitemap($sitemapIndex, $section, $now, $pulse);
+                $this->writeFiles($sitemapIndex);
             }
-
-            $this->writeFiles($sitemapIndex);
         } catch (\Exception $exception) {
             $this->log->error($exception->getMessage());
         } finally {
@@ -88,7 +104,120 @@ class SitemapWriter
         }
     }
 
-    private function spiltSitemaps(SitemapIndex &$sitemapIndex, Sitemap &$sitemap, int $split, string $filename, string $now): void
+    private function writeMultiLingualSitemaps(MultilingualSitemapIndexes $multilingualSitemapIndexes): void
+    {
+
+        $xmlIndex = $this->serializer->serialize(
+            [
+                '@xmlns' => 'http://www.sitemaps.org/schemas/sitemap/0.9',
+                'sitemap' => $multilingualSitemapIndexes->getSitemaps()
+            ],
+            'xml',
+            [
+                'xml_root_node_name' => 'sitemapindex',
+                'xml_format_output' => true,
+            ]
+        );
+        /**
+         * @phpstan-ignore-next-line
+         */
+        $this->filesystem->put(DIR_BASE . '/' . $this->getSitemapFileName(), $xmlIndex);
+
+        foreach ($multilingualSitemapIndexes->getSitemaps() as $multilingualSitemapIndex) {
+            $xmlIndex = $this->serializer->serialize(
+                [
+                    '@xmlns' => 'http://www.sitemaps.org/schemas/sitemap/0.9',
+                    'sitemap' => $multilingualSitemapIndex->getSitemap()->toArray()
+                ],
+                'xml',
+                [
+                    'xml_root_node_name' => 'sitemapindex',
+                    'xml_format_output' => true,
+                ]
+            );
+            /**
+             * @phpstan-ignore-next-line
+             */
+            $this->filesystem->put(DIR_BASE . '/' . $this->getSitemapBasePath() . "/{$multilingualSitemapIndex->getFileName()}", $xmlIndex);
+            /**
+             * @var Sitemap $sitemapIndex
+             */
+            foreach ($multilingualSitemapIndex->getSitemap() as $sitemapIndex) {
+                /**
+                 * @var array<array<string|array<string>>> $pages
+                 */
+                $pages = $this->serializer->normalize($sitemapIndex->getPages()->toArray(), 'array');
+
+                $xml = $this->serializer->serialize(
+                    [
+                        '@xmlns' => 'http://www.sitemaps.org/schemas/sitemap/0.9',
+                        '@xmlns:x' => 'http://www.w3.org/1999/xhtml',
+                        '@xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance',
+                        '@xmlns:xhtml' => 'http://www.w3.org/TR/xhtml11/xhtml11_schema.html',
+                        '@xsi:schemaLocation' => 'http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd http://www.w3.org/TR/xhtml11/xhtml11_schema.html http://www.w3.org/2002/08/xhtml/xhtml1-strict.xsd',
+                        'url' => $pages
+                    ],
+                    'xml',
+                    [
+                        'xml_root_node_name' => 'urlset',
+                        'xml_format_output' => true,
+                    ]
+                );
+                /**
+                 * @phpstan-ignore-next-line
+                 */
+                $this->filesystem->put(DIR_BASE . '/' . $this->getSitemapBasePath() . "/{$sitemapIndex->getFileName()}", $xml);
+            }
+        }
+    }
+
+    /**
+     * @param SitemapIndex $sitemapIndex
+     * @param array<SitemapXml> $indexes
+     * @param string $now
+     * @param callable|null $pulse
+     * @return void
+     */
+    private function generateFromIndexes(SitemapIndex $sitemapIndex, array $indexes, string $now, ?callable $pulse): void
+    {
+        foreach ($indexes as $index) {
+            $this->generateSitemap($sitemapIndex, $index, $now, $pulse);
+        }
+    }
+
+    private function generateSitemap(SitemapIndex|MultilingualSitemapIndex $sitemapIndex, SitemapXml $index, string $now, ?callable $pulse): void
+    {
+        $sitemap = new Sitemap();
+        $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), $index->getFileName()]));
+        $sitemap->setLastmod($now);
+        $sitemap->setFileName($index->getFileName());
+        $pages = $this->sitemapGenerator->generatePages($index, $pulse);
+        $sitemap->setPages($pages);
+        if ($sitemap->getPages()->count() > $index->getLimitPerFile()) {
+            // if it is more than the amount spilt into smaller sitemap indexes
+            $this->spiltSitemaps($sitemapIndex, $sitemap, $index->getLimitPerFile(), $index->getFilename(), $now);
+        } else {
+            $sitemapIndex->addSitemap($sitemap);
+        }
+    }
+
+    private function generateGeneralSitemap(SitemapIndex|MultilingualSitemapIndex $sitemapIndex, Section $section, string $now, ?callable $pulse): void
+    {
+        $filename = sprintf("general%s.xml", $section->getCollectionHandle() ? '-' . $section->getCollectionHandle() : '');
+        $sitemap = new Sitemap();
+        $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), $filename]));
+        $sitemap->setLastmod($now);
+        $sitemap->setFileName($filename);
+        $pages = $this->sitemapGenerator->getGeneralPages($section, $pulse);
+        $sitemap->setPages($pages);
+        if ($sitemap->getPages()->count() > 50000) {
+            $this->spiltSitemaps($sitemapIndex, $sitemap, 50000, $filename, $now);
+        } else {
+            $sitemapIndex->addSitemap($sitemap);
+        }
+    }
+
+    private function spiltSitemaps(SitemapIndex|MultilingualSitemapIndex &$sitemapIndex, Sitemap &$sitemap, int $split, string $filename, string $now): void
     {
         $pages = $sitemap->getPages()->chunk($split);
         /**

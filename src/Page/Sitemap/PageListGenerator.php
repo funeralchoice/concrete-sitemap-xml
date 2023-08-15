@@ -5,6 +5,7 @@ namespace Concrete\Package\SitemapXml\Page\Sitemap;
 use Concrete\Core\Application\Service\Dashboard;
 use Concrete\Core\Database\Connection\Connection;
 use Concrete\Core\Entity\Site\Site;
+use Concrete\Core\Multilingual\Page\Section\Section;
 use Concrete\Core\Page\PageList;
 use Concrete\Core\Page\Page;
 use Concrete\Core\Permission\Access\Entity\GroupEntity as GroupPermissionAccessEntity;
@@ -52,6 +53,10 @@ class PageListGenerator
     {
         $pageList = new PageList();
         $pageList->ignorePermissions();
+        /**
+         * @phpstan-ignore-next-line
+         */
+        $pageList->setSiteTreeObject($page->getSiteTreeObject());
         if ($page->getCollectionID()) {
             $pageList->filterByPath($page->getCollectionPath());
         }
@@ -63,12 +68,17 @@ class PageListGenerator
     }
 
     /**
+     * @param Section $section
      * @param array<int> $excludeIds
      * @return Page[]
      */
-    public function getGeneralPages(array $excludeIds = []): array
+    public function getGeneralPages(Section $section, array $excludeIds = []): array
     {
         $pageList = new PageList();
+        /**
+         * @phpstan-ignore-next-line
+         */
+        $pageList->setSiteTreeObject($section->getSiteTreeObject());
         $pageList->ignorePermissions();
         $qb = $pageList->getQueryObject();
         if (count($excludeIds)) {

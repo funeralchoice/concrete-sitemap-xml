@@ -2,15 +2,21 @@
 
 namespace Concrete\Package\SitemapXml\Page\Sitemap;
 
+use Application\Helpers\ServiceHelper;
 use Concrete\Core\Config\Repository\Repository;
+use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Multilingual\Page\Section\Section as MultilingualSection;
 use Concrete\Core\Page\Page;
+use Concrete\Core\Site\Service;
 use Concrete\Core\Support\Facade\Application;
 use Concrete\Core\Url\UrlImmutable;
 use Concrete\Package\SitemapXml\Entity\SitemapXml;
 use Concrete\Package\SitemapXml\Handler\AbstractHandler;
+use Concrete\Package\SitemapXml\Page\Element\SitemapPageLink;
 use DateTime;
 use Concrete\Core\Url\Resolver\Manager\ResolverManager;
 use Concrete\Package\SitemapXml\Page\Element\SitemapPage;
+use Concrete\Core\Entity\Site\Site;
 
 class SitemapGenerator
 {
@@ -21,12 +27,24 @@ class SitemapGenerator
      */
     private array $pagesProcessed = [];
     private ResolverManager $urlResolver;
+    private bool $isMultilingual = false;
+    /**
+     * @var array<Section>|null $multilingualSections
+     */
+    private ?array $multilingualSections = null;
 
-    public function __construct(PageListGenerator $pageListGenerator, Repository $config, ResolverManager $urlResolver)
+    /**
+     * @var Site|null|false
+     */
+    private Site|null|false $site = false;
+    private Service $siteService;
+
+    public function __construct(PageListGenerator $pageListGenerator, Repository $config, ResolverManager $urlResolver, Service $siteService)
     {
         $this->pageListGenerator = $pageListGenerator;
         $this->config = $config;
         $this->urlResolver = $urlResolver;
+        $this->siteService = $siteService;
     }
 
     /**
@@ -68,7 +86,12 @@ class SitemapGenerator
                     ->setLastmod($lastModified->format(DateTime::W3C))
                     ->setChangefreq($this->getPageChangeFrequency($page))
                     ->setPriority($this->getPagePriority($page));
-                $this->pagesProcessed[] = $page->getCollectionID();
+
+                $this->populateLanguageAlternatives($sitemapPage, $page);
+                /**
+                 * @phpstan-ignore-next-line
+                 */
+                $this->pagesProcessed[$page->getSiteHomePageID()][] = $page->getCollectionID();
                 if ($pulse !== null) {
                     $pulse($sitemapPage);
                 }
@@ -78,14 +101,108 @@ class SitemapGenerator
         return null;
     }
 
+
+    protected function populateLanguageAlternatives(SitemapPage $sitemapPage, Page $page): void
+    {
+        $pageSection = $this->getMultilingualSectionForPage($page);
+        if ($pageSection !== null) {
+            foreach ($this->getMultilingualSections() as $relatedSection) {
+                if ($relatedSection !== $pageSection) {
+                    $relatedPageID = $relatedSection->getTranslatedPageID($page);
+                    if ($relatedPageID) {
+                        $relatedPage = Page::getByID($relatedPageID);
+                        if ($relatedPage->getCollectionID() && $this->pageListGenerator->canIncludePageInSitemap($relatedPage)) {
+                            $relatedUrl = $this->getPageLink($relatedPage);
+                            $xLink = new SitemapPageLink();
+                            $locale = $relatedPage->getSiteTreeObject()?->getLocale()->getLocale();
+                            $lang = strtolower(str_replace('_', '-', $locale));
+                            $xLink->setRel('alternate')
+                                ->setHreflang($lang)
+                                ->setHref($relatedUrl);
+                            $sitemapPage->addLink($xLink);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public function getMultilingualSectionForPage(Page $page): ?Section
+    {
+        $result = null;
+        $siteTree = $page->getSiteTreeObject();
+        if ($siteTree !== null) {
+            $homeID = $siteTree->getSiteHomePageID();
+            if ($homeID) {
+                $mlSections = $this->getMultilingualSections();
+                if (isset($mlSections[$homeID])) {
+                    $result = $mlSections[$homeID];
+                }
+            }
+        }
+
+        return $result;
+    }
+
     /**
+     * @return array<Section>
+     */
+    public function getMultilingualSections(): array
+    {
+        if ($this->multilingualSections === null) {
+            $site = $this->getSite();
+            if ($site === null) {
+                $this->multilingualSections = [];
+            } else {
+                $list = [];
+                if ($site) {
+                    foreach (MultilingualSection::getList($site) as $section) {
+                        $list[$section->getCollectionID()] = $section;
+                    }
+                }
+                $this->multilingualSections = $list;
+            }
+        }
+
+        return $this->multilingualSections;
+    }
+
+    public function getSite(): false|\Concrete\Core\Entity\Site\Site|null
+    {
+        if ($this->site === false) {
+            $this->site = $this->siteService->getDefault();
+        }
+
+        return $this->site;
+    }
+
+    public function setSite(false|\Concrete\Core\Entity\Site\Site|null $site): self
+    {
+        $this->site = $site;
+        return $this;
+    }
+
+    /**
+     * @param Section $section
      * @param callable|null $pulse
      * @return SitemapPage[]
      */
-    public function getGeneralPages(?callable $pulse = null): array
+    public function getGeneralPages(Section $section, ?callable $pulse = null): array
     {
         $sitemapPages = [];
-        $pages = $this->pageListGenerator->getGeneralPages($this->pagesProcessed);
+        $pages = [];
+        $excludeIds = [];
+        /**
+         * @var int|null $homepageId
+         */
+        $homepageId = $section->getSiteTreeObject()?->getSiteHomePageID();
+        if ($homepageId && array_key_exists($homepageId, $this->pagesProcessed)) {
+            /**
+             * @var array<int> $excludeIds
+             */
+            $excludeIds = $this->pagesProcessed[$homepageId];
+        }
+        $pages = $this->pageListGenerator->getGeneralPages($section, $excludeIds);
         foreach ($pages as $page) {
             $sitemapPage = $this->getSitemapPage($page, $pulse);
             if ($sitemapPage) {
@@ -146,5 +263,16 @@ class SitemapGenerator
     public function getPageListGenerator(): PageListGenerator
     {
         return $this->pageListGenerator;
+    }
+
+    public function isMultilingual(): bool
+    {
+        return $this->isMultilingual;
+    }
+
+    public function setIsMultilingual(bool $isMultilingual): self
+    {
+        $this->isMultilingual = $isMultilingual;
+        return $this;
     }
 }

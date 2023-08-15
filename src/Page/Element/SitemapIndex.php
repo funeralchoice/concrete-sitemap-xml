@@ -7,7 +7,7 @@ class SitemapIndex
     /**
      * @var Sitemap[] $sitemaps
      */
-    private array $sitemaps;
+    private array $sitemaps = [];
 
     /**
      * @return Sitemap[]
