@@ -153,7 +153,7 @@ class SitemapWriter
                         '@xmlns' => 'http://www.sitemaps.org/schemas/sitemap/0.9',
                         '@xmlns:x' => 'http://www.w3.org/1999/xhtml',
                         '@xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance',
-                        '@xmlns:xhtml' => 'http://www.w3.org/TR/xhtml11/xhtml11_schema.html',
+                        '@xmlns:xhtml' => 'http://www.w3.org/1999/xhtml',
                         '@xsi:schemaLocation' => 'http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd http://www.w3.org/TR/xhtml11/xhtml11_schema.html http://www.w3.org/2002/08/xhtml/xhtml1-strict.xsd',
                         'url' => $pages
                     ],
