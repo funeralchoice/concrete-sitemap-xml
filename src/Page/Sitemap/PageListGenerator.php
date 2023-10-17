@@ -105,10 +105,6 @@ class PageListGenerator
         if ($page->isInTrash()) {
             return false;
         }
-        $pageVersion = $page->getVersionObject();
-        if ($pageVersion && !$pageVersion->isApproved()) {
-            return false;
-        }
         $pubDate = new DateTime($page->getCollectionDatePublic());
         if ($pubDate > $this->now) {
             return false;
