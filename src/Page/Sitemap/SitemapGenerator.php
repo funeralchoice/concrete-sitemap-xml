@@ -2,11 +2,8 @@
 
 namespace Concrete\Package\SitemapXml\Page\Sitemap;
 
-use Application\Helpers\ServiceHelper;
 use Concrete\Core\Config\Repository\Repository;
 use Concrete\Core\Multilingual\Page\Section\Section;
-use Concrete\Core\Multilingual\Page\Section\Section;
-use Concrete\Core\Multilingual\Page\Section\Section as MultilingualSection;
 use Concrete\Core\Multilingual\Page\Section\Section as MultilingualSection;
 use Concrete\Core\Page\Page;
 use Concrete\Core\Site\Service;
