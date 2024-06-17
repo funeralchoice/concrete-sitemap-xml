@@ -28,6 +28,10 @@ Then run:
 
 `composer require rawnet/concrete-sitemap-xml`
 
+## Upgrading 
+If you are upgrading to version two, your existing records need to be assigned to the correct site, it's most likely that you will need to run
+update pkRawnetSitemapXml set site_locale_id = 1;
+
 ## Instructions
 
 1. Ensure you have a folder created in called `sitemaps` in the service directory
@@ -84,3 +88,13 @@ $appSettings = [
     ]
 ];
 ```
+4. If you are using a multi site setup then you will need to add a route into your app
+
+```php
+use Concrete\Package\SitemapXml\Controller\SitemapXmlController;
+public const SITEMAP_XML = '/sitemaps/sitemap.xml';
+
+$this->routes[] = (new Route(self::SITEMAP_XML))
+   ->setAction(SitemapXmlController::class . '::index')
+   ->setMethods(Request::METHOD_GET); 
+```   

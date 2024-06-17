@@ -5,6 +5,9 @@ namespace Concrete\Package\SitemapXml\Repository;
 use Concrete\Package\SitemapXml\Entity\SitemapXml;
 use Doctrine\ORM\EntityRepository;
 
+/**
+ * @extends EntityRepository<SitemapXml>
+ */
 class SitemapXmlRepository extends EntityRepository
 {
     /**

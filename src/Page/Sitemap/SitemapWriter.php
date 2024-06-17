@@ -4,15 +4,20 @@ namespace Concrete\Package\SitemapXml\Page\Sitemap;
 
 use Concrete\Core\Cache\Cache;
 use Concrete\Core\Config\Repository\Repository;
+use Concrete\Core\Entity\Site\Locale;
+use Concrete\Core\Entity\Site\Site;
+use Concrete\Core\Entity\Site\Tree;
 use Concrete\Core\Error\UserMessageException;
 use Concrete\Core\Logging\Channels;
 use Concrete\Core\Logging\LoggerFactory;
-use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Page\Page;
+use Concrete\Core\Site\Service;
 use Concrete\Core\Url\Resolver\Manager\ResolverManager;
 use Concrete\Core\Url\UrlImmutable;
 use Concrete\Package\SitemapXml\Entity\SitemapXml;
 use Concrete\Package\SitemapXml\Page\Element\MultilingualSitemapIndex;
 use Concrete\Package\SitemapXml\Page\Element\MultilingualSitemapIndexes;
+use Concrete\Package\SitemapXml\Url\SitePathUrlResolver;
 use Doctrine\ORM\EntityManager;
 use Illuminate\Filesystem\Filesystem;
 use DateTime;
@@ -31,8 +36,16 @@ class SitemapWriter
     private ResolverManager $urlResolver;
     private Repository $config;
     private LoggerInterface $log;
+    private Service $siteService;
+    private bool $isMultiSite = false;
+    /**
+     * @var Site[] $sites
+     */
+    private array $sites;
+    private Site $currentSite;
+    private SitePathUrlResolver $siteResolver;
 
-    public function __construct(Filesystem $filesystem, SitemapGenerator $sitemapGenerator, EntityManager $entityManager, Serializer $serializer, ResolverManager $urlResolver, Repository $config, LoggerFactory $log)
+    public function __construct(Filesystem $filesystem, SitemapGenerator $sitemapGenerator, EntityManager $entityManager, Serializer $serializer, ResolverManager $urlResolver, Repository $config, LoggerFactory $log, Service $siteService, SitePathUrlResolver $siteResolver)
     {
         $this->filesystem = $filesystem;
         $this->sitemapGenerator = $sitemapGenerator;
@@ -41,6 +54,8 @@ class SitemapWriter
         $this->urlResolver = $urlResolver;
         $this->config = $config;
         $this->log = $log->createLogger(Channels::CHANNEL_EXCEPTIONS);
+        $this->siteService = $siteService;
+        $this->siteResolver = $siteResolver;
     }
 
     /**
@@ -52,50 +67,97 @@ class SitemapWriter
         try {
             $this->checkOutputFileName();
             Cache::disableAll();
-            /**
-             * @var SitemapXml[] $indexes
-             */
-            $indexes = $this->entityManager->getRepository(SitemapXml::class)->findAll();
             $now = (new DateTime())->format(DateTime::W3C);
-            $sitemapIndex = new SitemapIndex();
+            $this->sites = $this->siteService->getList();
+            $this->isMultiSite = count($this->sites) > 1;
+            foreach ($this->sites as $site) {
+
+                $this->currentSite = $site;
+                $siteHandle = $site->getSiteHandle();
+
+                $this->setSiteResolver($site);
+                $this->sitemapGenerator->setSite($site);
+                $this->sitemapGenerator->getPageListGenerator()->setSite($site);
+
+                $indexes = $this->getSitemapIndexForSite($site);
+
+                // is site multilingual...
+                $isMultilingual = $site->getLocales()->count() > 1;
+
+                $sitemapIndex = new SitemapIndex();
+                $indexCollection = new Collection($indexes);
 
 
-            $sitemaps = [];
-            $siteSitemaps = [];
-            foreach ($indexes as $index) {
-                $sitemaps[$index->getSite()] = $index;
-                $siteSitemaps[$index->getSite()][] = $index;
-            }
-            if (count($sitemaps) > 1) {
-                $this->sitemapGenerator->setIsMultilingual(true);
+                if ($isMultilingual) {
+                    $this->sitemapGenerator->setIsMultilingual(true);
 
-                $multiLingualSitemapIndexes = new MultilingualSitemapIndexes();
-                foreach ($sitemaps as $siteId => $sitemap) {
-                    /**
-                     * @var Section $section
-                     */
-                    $section = Section::getByID($siteId);
-                    $multiLingualSitemapIndex = new MultilingualSitemapIndex();
+                    $multiLingualSitemapIndexes = new MultilingualSitemapIndexes();
+                    foreach ($site->getLocales() as $locale) {
+                        /**
+                         * @var Collection<SitemapXml> $sitemaps
+                         */
+                        $sitemaps = $indexCollection->filter(function (SitemapXml $xml) use ($locale) {
+                            return $xml->getLocale() && $xml->getLocale()->getLocaleID() === $locale->getLocaleID();
+                        });
 
-                    $filename = "sitemap-{$section->getCollectionHandle()}.xml";
-                    $multiLingualSitemapIndex->setLoc($this->getLink([$this->getSitemapBasePath(), $filename]))
-                        ->setLastmod($now)
-                        ->setFileName($filename);
-                    $generatePages = $siteSitemaps[$siteId];
+                        /**
+                         * @var Tree $tree
+                         */
+                        $tree = $locale->getSiteTreeObject();
+                        /**
+                         * @var Page $section
+                         */
+                        $section = $tree->getSiteHomePageObject();
 
-                    foreach ($generatePages as $index) {
-                        $this->generateSitemap($multiLingualSitemapIndex, $index, $now, $pulse);
+                        $multiLingualSitemapIndex = new MultilingualSitemapIndex();
+
+                        $filename = "$siteHandle-sitemap-{$section->getCollectionHandle()}.xml";
+                        $multiLingualSitemapIndex->setLoc($this->getLink([$this->getSitemapBasePath(), $filename]))
+                            ->setLastmod($now)
+                            ->setFileName($filename);
+
+                        // check if indexes have been created
+                        if ($sitemaps->count()) {
+                            foreach ($sitemaps as $index) {
+                                $this->generateSitemap($multiLingualSitemapIndex, $index, $now, $pulse);
+                            }
+                            $this->generateGeneralSitemap($multiLingualSitemapIndex, $section, $now, $site, $pulse);
+                            $multiLingualSitemapIndexes->addSitemap($multiLingualSitemapIndex);
+                        } else {
+                            // no indexes created, just generate a general sitemap for the locale with all pages
+                            $this->generateGeneralSitemap($multiLingualSitemapIndex, $section, $now, $site, $pulse);
+                            $multiLingualSitemapIndexes->addSitemap($multiLingualSitemapIndex);
+                        }
                     }
-                    $this->generateGeneralSitemap($multiLingualSitemapIndex, $section, $now, $pulse);
-                    $multiLingualSitemapIndexes->addSitemap($multiLingualSitemapIndex);
-                }
 
-                $this->writeMultiLingualSitemaps($multiLingualSitemapIndexes);
-            } else {
-                $this->generateFromIndexes($sitemapIndex, $indexes, $now, $pulse);
-                $section = Section::getDefaultSection();
-                $this->generateGeneralSitemap($sitemapIndex, $section, $now, $pulse);
-                $this->writeFiles($sitemapIndex);
+                    $this->writeMultiLingualSitemaps($multiLingualSitemapIndexes);
+                } else {
+                    // site is not multilingual
+                    /**
+                     * @var Locale $locale
+                     */
+                    $locale = $site->getDefaultLocale();
+                    /**
+                     * @var Tree $tree
+                     */
+                    $tree = $locale->getSiteTreeObject();
+                    /**
+                     * @var Page $section
+                     */
+                    $section = $tree->getSiteHomePageObject();
+
+                    $sitemaps = $indexCollection->filter(function (SitemapXml $xml) use ($locale) {
+                        return $xml->getLocale() && $xml->getLocale()->getLocaleID() === $locale->getLocaleID();
+                    });
+
+                    if ($sitemaps->count()) {
+                        $this->generateFromIndexes($sitemapIndex, $sitemaps->toArray(), $now, $pulse);
+                    }
+
+
+                    $this->generateGeneralSitemap($sitemapIndex, $section, $now, $site, $pulse);
+                    $this->writeFiles($sitemapIndex);
+                }
             }
         } catch (\Exception $exception) {
             $this->log->error($exception->getMessage());
@@ -103,6 +165,38 @@ class SitemapWriter
             Cache::enableAll();
         }
     }
+
+
+    public function setSiteResolver(Site $site): void
+    {
+        $this->siteResolver->setSite($site);
+        $this->urlResolver->addResolver('sitemapxml.site', $this->siteResolver, 1024);
+    }
+
+    /**
+     * @param Site $site
+     * @return SitemapXml[]
+     * @throws \Doctrine\ORM\Exception\NotSupported
+     */
+    private function getSitemapIndexForSite(Site $site): array
+    {
+        $qb = $this->entityManager->getRepository(SitemapXml::class)->createQueryBuilder('si');
+        $qb
+            ->addSelect('l')
+            ->addSelect('s')
+            ->leftJoin('si.locale', 'l')
+            ->leftJoin('l.site', 's');
+        $qb->where('l.site = :site')
+            ->setParameter('site', $site);
+
+        /**
+         * @var SitemapXml[] $indexes
+         */
+        $indexes = $qb->getQuery()->execute();
+
+        return $indexes;
+    }
+
 
     private function writeMultiLingualSitemaps(MultilingualSitemapIndexes $multilingualSitemapIndexes): void
     {
@@ -187,23 +281,29 @@ class SitemapWriter
 
     private function generateSitemap(SitemapIndex|MultilingualSitemapIndex $sitemapIndex, SitemapXml $index, string $now, ?callable $pulse): void
     {
+        if ($this->isMultiSite) {
+            $fileName = "{$this->currentSite->getSiteHandle()}-{$index->getFileName()}";
+        } else {
+            $fileName = $index->getFileName();
+        }
         $sitemap = new Sitemap();
-        $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), $index->getFileName()]));
+        $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), $fileName]));
         $sitemap->setLastmod($now);
-        $sitemap->setFileName($index->getFileName());
+        $sitemap->setFileName($fileName);
         $pages = $this->sitemapGenerator->generatePages($index, $pulse);
         $sitemap->setPages($pages);
         if ($sitemap->getPages()->count() > $index->getLimitPerFile()) {
             // if it is more than the amount spilt into smaller sitemap indexes
-            $this->spiltSitemaps($sitemapIndex, $sitemap, $index->getLimitPerFile(), $index->getFilename(), $now);
+            $this->spiltSitemaps($sitemapIndex, $sitemap, $index->getLimitPerFile(), $fileName, $now);
         } else {
             $sitemapIndex->addSitemap($sitemap);
         }
     }
 
-    private function generateGeneralSitemap(SitemapIndex|MultilingualSitemapIndex $sitemapIndex, Section $section, string $now, ?callable $pulse): void
+    private function generateGeneralSitemap(SitemapIndex|MultilingualSitemapIndex $sitemapIndex, Page $section, string $now, ?Site $site = null, ?callable $pulse = null): void
     {
-        $filename = sprintf("general%s.xml", $section->getCollectionHandle() ? '-' . $section->getCollectionHandle() : '');
+        $siteHandlePrefix = $site ? $site->getSiteHandle() . '-' : '';
+        $filename = sprintf("%sgeneral%s.xml", $siteHandlePrefix, $section->getCollectionHandle() ? '-' . $section->getCollectionHandle() : '');
         $sitemap = new Sitemap();
         $sitemap->setLoc($this->getLink([$this->getSitemapBasePath(), $filename]));
         $sitemap->setLastmod($now);
@@ -278,10 +378,14 @@ class SitemapWriter
 
     public function getSitemapFileName(): string
     {
-        /**
-         * @var string $sitemapXmlFile
-         */
-        $sitemapXmlFile = $this->config->get('concrete.sitemap_xml.file');
+        if ($this->isMultiSite) {
+            $sitemapXmlFile = "sitemaps/{$this->currentSite->getSiteHandle()}-sitemap.xml";
+        } else {
+            /**
+             * @var string $sitemapXmlFile
+             */
+            $sitemapXmlFile = $this->config->get('concrete.sitemap_xml.file');
+        }
         return $sitemapXmlFile;
     }
 
@@ -317,7 +421,7 @@ class SitemapWriter
      * @param array<string|int> $params
      * @return string
      */
-    private function getLink(array $params = []): string
+    public function getLink(array $params = []): string
     {
         /** @var UrlImmutable $resolved */
         $resolved = $this->urlResolver->resolve($params);

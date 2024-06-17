@@ -2,13 +2,16 @@
 
 namespace Concrete\Package\SitemapXml\Entity;
 
+use Concrete\Core\Entity\Site\Locale;
 use Concrete\Core\Page\Page;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * @ORM\Entity(repositoryClass="\Concrete\Package\SitemapXml\Repository\SitemapXmlRepository")
  * @ORM\Table(name="pkRawnetSitemapXml")
+ * @UniqueEntity("fileName", message="Filename already exists", service="\Application\Bridge\Validator\UniqueEntityValidator")
  */
 class SitemapXml
 {
@@ -21,8 +24,12 @@ class SitemapXml
     protected ?int $id = null;
 
     /**
-     * @ORM\Column(type="string", nullable=false)
+     * @ORM\Column(type="string", nullable=false, unique=true)
      * @Assert\NotBlank()
+     * @Assert\Regex(
+     *     pattern="/\.xml$/",
+     *     message="The file name must end with .xml"
+     * )
      */
     protected string $fileName;
 
@@ -50,10 +57,16 @@ class SitemapXml
     protected ?string $handler = null;
 
     /**
-     * @ORM\Column(type="integer", nullable=false, options={"default"=1})
-     * @Assert\GreaterThanOrEqual(value = 1, message = "You need to select a site.")
+     * @ORM\Column(type="integer", nullable=true, options={"default"=1})
+     * @deprecated
      */
     protected int $site;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="\Concrete\Core\Entity\Site\Locale")
+     * @ORM\JoinColumn(name="site_locale_id", referencedColumnName="siteLocaleID", nullable=true)
+     */
+    private ?Locale $locale = null;
 
     /**
      * @return int|null
@@ -174,6 +187,17 @@ class SitemapXml
     public function setSite(int $site): self
     {
         $this->site = $site;
+        return $this;
+    }
+
+    public function getLocale(): ?Locale
+    {
+        return $this->locale;
+    }
+
+    public function setLocale(?Locale $locale): self
+    {
+        $this->locale = $locale;
         return $this;
     }
 

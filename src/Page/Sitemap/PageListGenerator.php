@@ -68,11 +68,11 @@ class PageListGenerator
     }
 
     /**
-     * @param Section $section
+     * @param Page $section
      * @param array<int> $excludeIds
      * @return Page[]
      */
-    public function getGeneralPages(Section $section, array $excludeIds = []): array
+    public function getGeneralPages(Page $section, array $excludeIds = []): array
     {
         $pageList = new PageList();
         /**
@@ -164,5 +164,11 @@ class PageListGenerator
             $this->site = $this->siteService->getDefault();
         }
         return $this->site;
+    }
+
+    public function setSite(?Site $site): self
+    {
+        $this->site = $site;
+        return $this;
     }
 }

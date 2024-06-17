@@ -2,10 +2,9 @@
 
 namespace Concrete\Package\SitemapXml\Controller\SinglePage\Dashboard\System\Seo\SitemapXml;
 
-use Application\Helpers\ServiceHelper;
 use Application\Services\RedirectService;
 use Concrete\Core\Config\Repository\Repository;
-use Concrete\Core\Page\Controller\DashboardPageController;
+use Concrete\Core\Page\Controller\DashboardSitePageController;
 use Concrete\Core\Page\Page;
 use Concrete\Package\SitemapXml\Entity\SitemapXml;
 use Concrete\Package\SitemapXml\Form\SitemapXmlType;
@@ -19,7 +18,7 @@ use Twig\Environment;
  * Class Manage
  * @package Concrete\Package\SitemapXml\Controller\SinglePage\Dashboard\System\Seo\SitemapXml
  */
-class Manage extends DashboardPageController
+class Manage extends DashboardSitePageController
 {
     public const PARENT_CONTROLLER_PATH = '/dashboard/system/seo/sitemap_xml';
     private Environment $twig;
@@ -61,7 +60,11 @@ class Manage extends DashboardPageController
         } else {
             $sitemapIndex = new SitemapXml();
         }
-        $handlers = array_flip($this->config->get('app.sitemap_xml.handlers', []));
+        /**
+         * @var array<string> $handlers
+         */
+        $handlers = $this->config->get('app.sitemap_xml.handlers', []);
+        $handlers = array_flip($handlers);
         $form = $this->formFactory->create(SitemapXmlType::class, $sitemapIndex, ['handlers' => $handlers]);
         $request = Request::createFromGlobals();
         $form->handleRequest($request);
@@ -71,7 +74,7 @@ class Manage extends DashboardPageController
         if ($request->getMethod() === 'POST' && isset($data['sitemap_xml']) && isset($data['sitemap_xml']['delete'])) {
             $entityManager->remove($sitemapIndex);
             $entityManager->flush();
-            ServiceHelper::redirect('/dashboard/system/seo/sitemap_xml/');
+            $this->redirectService->redirect('/dashboard/system/seo/sitemap_xml/');
             return;
         }
 

@@ -1,21 +1,19 @@
 <div class="row">
-    <div class="col-xs-12 col-lg-8 col-lg-offset-2">
-        <form action="/dashboard/system/seo/sitemap_xml" method="get">
-            <div class="form-group">
-                <div class="input-group">
-                    {% if search %}
-                    <span class="input-group-btn">
-                            <a href="/dashboard/system/seo/sitemap_xml" class="btn btn-danger"><i class="fa fa-times"></i></a>
-                        </span>
-                    {% endif %}
-                    <input type="search" name="search" value="{{ search }}" class="form-control" />
-
-                    <span class="input-group-btn">
-                        <button class="btn btn-info"><i class="fa fa-search"></i></button>
-                    </span>
-                </div>
+    <div class="mt-4 col-12">
+        {{ form_start(form) }}
+        <div class="row align-items-center">
+            <div class="col-3 px-1">
+                {{ form_widget(form.locale) }}
             </div>
-        </form>
+            <div class="col-3 px-1">
+                {{ form_widget(form.search) }}
+            </div>
+            <div class="col-2 px-1">
+                {{ form_widget(form.submit) }}
+
+            </div>
+        </div>
+        {{ form_end(form) }}
     </div>
 </div>
 <div class="row">
@@ -32,19 +30,19 @@
                 </thead>
                 <tbody>
                 {% for sitemap in sitemaps %}
-                <tr>
-                    <td>{{sitemap.title}}</td>
-                    <td>{{sitemap.getPagePath()}}</td>
-                    <td>{{sitemap.fileName}}</td>
-                    <td><a href="/dashboard/system/seo/sitemap_xml/manage/{{ sitemap.id }}" class="btn btn-sm btn-primary pull-right"><i class="fa fa-edit"></i></a></td>
-                </tr>
+                    <tr>
+                        <td>{{sitemap.title}}</td>
+                        <td>{{sitemap.getPagePath()}}</td>
+                        <td>{{sitemap.fileName}}</td>
+                        <td><a href="/dashboard/system/seo/sitemap_xml/manage/{{ sitemap.id }}" class="btn btn-sm btn-primary pull-right"><i class="fa fa-edit"></i></a></td>
+                    </tr>
 
                 {% else %}
-                <tr>
-                    <td colspan="4" class="no-data">
-                        No sitemap found
-                    </td>
-                </tr>
+                    <tr>
+                        <td colspan="4" class="no-data">
+                            No sitemap found
+                        </td>
+                    </tr>
                 {% endfor %}
                 </tbody>
             </table>

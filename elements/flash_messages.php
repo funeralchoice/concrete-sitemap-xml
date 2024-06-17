@@ -9,17 +9,17 @@ if ($flashbag->has('danger') || $flashbag->has('success') || $flashbag->has('inf
         'danger'=>$flashbag->get('danger',[]),
         'success'=>$flashbag->get('success',[]),
         'info'=>$flashbag->get('info', [])
-    ], function ($v) {return count($v);});
+    ], function ($v) {return count($v);}); /*** @phpstan-ignore-line */
 
     foreach ($types as $type => $messages) {
         ?>
         <div class="dashboard-alert alert alert-<?php echo $type ?>">
             <ul class="<?php echo count($messages) > 1 ? '' : 'list-unstyled'?>">
-            <?php
-            foreach ($messages as $message) {
-                 ?><li><?php echo $message ?></li><?php
-            }
-            ?>
+                <?php
+                foreach ($messages as $message) {
+                    ?><li><?php echo $message ?></li><?php
+                }
+                ?>
             </ul>
         </div>
         <?php
