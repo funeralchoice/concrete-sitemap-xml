@@ -5,6 +5,8 @@ namespace Concrete\Package\SitemapXml\Page\Sitemap;
 use Application\Helpers\ServiceHelper;
 use Concrete\Core\Config\Repository\Repository;
 use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Multilingual\Page\Section\Section;
+use Concrete\Core\Multilingual\Page\Section\Section as MultilingualSection;
 use Concrete\Core\Multilingual\Page\Section\Section as MultilingualSection;
 use Concrete\Core\Page\Page;
 use Concrete\Core\Site\Service;
@@ -183,14 +185,13 @@ class SitemapGenerator
     }
 
     /**
-     * @param Section $section
+     * @param Page $section
      * @param callable|null $pulse
      * @return SitemapPage[]
      */
-    public function getGeneralPages(Section $section, ?callable $pulse = null): array
+    public function getGeneralPages(Page $section, ?callable $pulse = null): array
     {
         $sitemapPages = [];
-        $pages = [];
         $excludeIds = [];
         /**
          * @var int|null $homepageId

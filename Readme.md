@@ -28,6 +28,9 @@ Then run:
 
 `composer require rawnet/concrete-sitemap-xml`
 
+## Upgrading 
+If you are upgrading to version two, your existing records need to be assigned to the correct site, it's most likely that you will need to run
+update pkRawnetSitemapXml set site_locale_id = 1;
 ## Instructions
 
 1. Ensure you have a folder created in called `sitemaps` in the service directory

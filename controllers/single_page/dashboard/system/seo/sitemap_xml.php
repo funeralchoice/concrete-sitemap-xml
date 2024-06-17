@@ -3,21 +3,23 @@
 namespace Concrete\Package\SitemapXml\Controller\SinglePage\Dashboard\System\Seo;
 
 use Concrete\Core\Http\Request;
-use Concrete\Core\Page\Controller\DashboardPageController;
+use Concrete\Core\Page\Controller\DashboardSitePageController;
 use Concrete\Core\Page\Page;
 use Concrete\Package\SitemapXml\Entity\SitemapXml as SitemapXmlEntity;
+use Concrete\Package\SitemapXml\Form\SitemapXmlSearchType;
 use Pagerfanta\Doctrine\ORM\QueryAdapter;
 use Pagerfanta\Pagerfanta;
+use Symfony\Component\Form\FormFactory;
 use Twig\Environment;
 
 /**
  * Class SitemapXml
  * @package Concrete\Package\SitemapXml\Controller\SinglePage\Dashboard\System\Seo\SitemapXml
  */
-class SitemapXml extends DashboardPageController
+class SitemapXml extends DashboardSitePageController
 {
 
-    public function __construct(Page $c, private readonly Environment $twig)
+    public function __construct(Page $c, private readonly Environment $twig, private readonly FormFactory $formFactory)
     {
         parent::__construct($c);
     }
@@ -30,25 +32,44 @@ class SitemapXml extends DashboardPageController
 
     public function view(): void
     {
+        /**
+         * @phpstan-ignore-next-line
+         */
         $repo = $this->entityManager->getRepository(SitemapXmlEntity::class);
-        $sitemaps = $repo->createQueryBuilder('e');
 
         $request = Request::getInstance();
+        $form = $this->formFactory->create(SitemapXmlSearchType::class);
+        $form->handleRequest($request);
+
+        /**
+         * @var array<array-key, string> $data
+         */
+        $data = $form->getData();
+
+        if (!isset($data['locale'])) {
+            $data['locale'] = $this->site->getDefaultLocale();
+        }
+
+        $sitemaps = $repo->createQueryBuilder('e');
+        $sitemaps->andWhere('e.locale = :locale')
+            ->setParameter('locale', $data['locale']);
+
         if ($search = $request->query->get('search')) {
             $sitemaps
-                ->where('e.title LIKE :search')
+                ->andWhere('e.title LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
         $sitemaps->orderBy('e.title, e.title');
 
         $pagination = new Pagerfanta(new QueryAdapter($sitemaps->getQuery()));
-        $pagination->setMaxPerPage(5);
-        $pagination->setCurrentPage($request->query->getInt('ccm_paging_p', 1));
+        $pagination->setMaxPerPage(10);
+        $pagination->setCurrentPage($request->query->getInt('page', 1));
 
         $viewTemplate = $this->twig->render('packages/sitemap_xml/single_pages/dashboard/system/seo/sitemap_xml/view.html.twig', [
             'sitemaps' => $pagination->getCurrentPageResults(),
             'pagination' => $pagination,
-            'search' => $search
+            'search' => $search,
+            'form' => $form->createView()
         ]);
         $this->set('viewTemplate', $viewTemplate);
     }

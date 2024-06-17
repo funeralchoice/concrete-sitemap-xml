@@ -2,34 +2,28 @@
 
 namespace Concrete\Package\SitemapXml\Form;
 
-use Application\Bridge\Form\Type\PageSelectorType;
 use Concrete\Core\Entity\Site\Locale;
 use Concrete\Core\Site\Service;
 use Concrete\Core\Support\Facade\Application;
-use Concrete\Package\SitemapXml\Entity\SitemapXml;
 use Doctrine\ORM\EntityRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
-use Symfony\Component\Form\Extension\Core\Type\NumberType;
+use Symfony\Component\Form\Extension\Core\Type\SearchType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
-use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Intl\Countries;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
-class SitemapXmlType extends AbstractType
+class SitemapXmlSearchType extends AbstractType
 {
+    /**
+     * @param FormBuilderInterface $builder
+     * @param mixed[] $options
+     * @return void
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-        /**
-         * @var array<string> $handlers
-         */
-        $handlers = $options['handlers'];
-        /**
-         * @var SitemapXml|null $data
-         */
-        $data = $builder->getData();
         $app = Application::getFacadeApplication();
         /**
          * @var Service $service
@@ -55,45 +49,20 @@ class SitemapXmlType extends AbstractType
                     return Countries::getName($locale->getCountry());
                 }
             ])
-            ->add('pageId', PageSelectorType::class, [
-                'label' => 'Page',
-                'required' => true,
-                'attr' => ['class' => 'page-selector']
-            ])
-            ->add('title', TextType::class, [
-                'required' => true
-            ])
-            ->add('fileName', TextType::class, [
-                'required' => true
-            ])
-            ->add('limitPerFile', NumberType::class, [
-                'label' => 'Limit Per File',
-                'empty_data' => 50000,
-                'required' => false,
-            ])
-            ->add('Handler', ChoiceType::class, [
-                'label' => 'Type',
-                'placeholder' => 'Select handler',
-                'choices' => $handlers,
+            ->add('search', SearchType::class, [
+                'attr' => ['placeholder' => 'Insert search query'],
                 'required' => false
             ])
-            ->add('submit', SubmitType::class);
-        if ($data && $data->getId()) {
-            $builder->add('delete', SubmitType::class, [
-                'label' => 'Delete',
-                'attr' => [
-                    'class' => 'btn btn-danger',
-                    'name' => 'delete',
-                ],
-            ]);
-        }
+            ->add('submit', SubmitType::class, [
+                'label' => 'Search'
+            ])
+            ->setMethod('GET');
     }
 
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
-            'data_class' => SitemapXml::class,
-        ])
-            ->setRequired('handlers');
+            'csrf_protection' => false,
+        ]);
     }
 }
