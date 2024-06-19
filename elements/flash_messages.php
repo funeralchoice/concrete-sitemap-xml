@@ -1,6 +1,7 @@
 <?php
 defined('C5_EXECUTE') or die("Access Denied.");
-use Application\Helpers\ServiceHelper;
+
+use Concrete\Package\SitemapXml\Helpers\ServiceHelper;
 
 $flashbag = ServiceHelper::flashBag();
 
