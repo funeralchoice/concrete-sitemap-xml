@@ -2,7 +2,7 @@
 
 namespace Concrete\Package\SitemapXml\Controller\SinglePage\Dashboard\System\Seo\SitemapXml;
 
-use Application\Services\RedirectService;
+use Concrete\Package\SitemapXml\Services\RedirectService;
 use Concrete\Core\Config\Repository\Repository;
 use Concrete\Core\Page\Controller\DashboardSitePageController;
 use Concrete\Core\Page\Page;
